@@ -1,0 +1,1141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DSM SaaS Spend Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --accent: #6c63ff;
+      --accent2: #00d4aa;
+      --accent3: #ff6b6b;
+      --accent4: #ffd166;
+      --text: #e8eaf6;
+      --muted: #8892b0;
+      --border: #2d3154;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    header { background: linear-gradient(135deg, #1a1d27 0%, #12152b 100%); border-bottom: 1px solid var(--border); padding: 24px 40px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+    .logo-area h1 { font-size: 1.6rem; font-weight: 700; background: linear-gradient(90deg, #6c63ff, #00d4aa); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .logo-area p { color: var(--muted); font-size: 0.85rem; margin-top: 2px; }
+    .period-badge { background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 6px 16px; font-size: 0.82rem; color: var(--muted); }
+    .period-badge span { color: var(--accent2); font-weight: 600; }
+
+    main { max-width: 1400px; margin: 0 auto; padding: 32px 24px; }
+
+    .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px 20px; position: relative; overflow: hidden; transition: transform 0.2s, box-shadow 0.2s; }
+    .kpi-card:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(108,99,255,0.15); }
+    .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 16px 16px 0 0; }
+    .kpi-card.purple::before { background: linear-gradient(90deg, #6c63ff, #a78bfa); }
+    .kpi-card.teal::before   { background: linear-gradient(90deg, #00d4aa, #06b6d4); }
+    .kpi-card.red::before    { background: linear-gradient(90deg, #ff6b6b, #f97316); }
+    .kpi-card.yellow::before { background: linear-gradient(90deg, #ffd166, #fb923c); }
+    .kpi-card.blue::before   { background: linear-gradient(90deg, #38bdf8, #818cf8); }
+    .kpi-card.green::before  { background: linear-gradient(90deg, #22c55e, #00d4aa); }
+    .kpi-label { font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+    .kpi-value { font-size: 2rem; font-weight: 700; line-height: 1; }
+    .kpi-value.purple { color: #a78bfa; }
+    .kpi-value.teal   { color: #00d4aa; }
+    .kpi-value.red    { color: #ff6b6b; }
+    .kpi-value.yellow { color: #ffd166; }
+    .kpi-value.blue   { color: #38bdf8; }
+    .kpi-value.green  { color: #22c55e; }
+    .kpi-sub { font-size: 0.75rem; color: var(--muted); margin-top: 6px; }
+
+    .section-title { font-size: 1.1rem; font-weight: 700; color: var(--text); margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .section-title::before { content: ''; display: inline-block; width: 4px; height: 18px; background: var(--accent); border-radius: 2px; }
+
+    .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 24px; margin-bottom: 32px; }
+    .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; }
+    .chart-card h3 { font-size: 0.9rem; color: var(--muted); margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.06em; }
+    .chart-wrap { position: relative; height: 260px; }
+
+    .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; margin-bottom: 32px; }
+    .table-card table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+    .table-card th { background: var(--surface2); color: var(--muted); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em; padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+    .table-card td { padding: 11px 14px; border-bottom: 1px solid rgba(45,49,84,0.5); vertical-align: middle; }
+    .table-card tr:last-child td { border-bottom: none; }
+    .table-card tr:hover td { background: rgba(108,99,255,0.04); }
+    .month-row td { background: var(--surface2) !important; color: var(--accent4); font-weight: 700; font-size: 0.82rem; padding: 8px 14px; }
+    .month-total { color: var(--muted); font-weight: 400; font-size: 0.78rem; margin-left: 8px; }
+
+    .service-name { font-weight: 600; color: var(--text); }
+    .service-tag { display: inline-block; font-size: 0.65rem; padding: 2px 7px; border-radius: 10px; margin-left: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+    .tag-ai    { background: rgba(108,99,255,0.2); color: #a78bfa; }
+    .tag-voice { background: rgba(0,212,170,0.15); color: #00d4aa; }
+    .tag-infra { background: rgba(56,189,248,0.15); color: #38bdf8; }
+    .tag-learn { background: rgba(255,209,102,0.15); color: #ffd166; }
+    .tag-crm   { background: rgba(249,115,22,0.15); color: #fb923c; }
+    .tag-gws   { background: rgba(34,197,94,0.15); color: #22c55e; }
+    .tag-dev   { background: rgba(244,114,182,0.15); color: #f472b6; }
+    .tag-social{ background: rgba(29,161,242,0.15); color: #38bdf8; }
+
+    .date-cell { color: var(--muted); white-space: nowrap; }
+    .amount-usd { color: #a78bfa; font-weight: 600; white-space: nowrap; }
+    .amount-inr { color: #00d4aa; font-weight: 600; white-space: nowrap; }
+    .amount-conv { color: var(--muted); font-size: 0.78rem; }
+    .fx-rate { color: var(--muted); font-size: 0.75rem; }
+
+    .status-paid    { background: rgba(34,197,94,0.15); color: #22c55e; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+    .status-failed  { background: rgba(255,107,107,0.15); color: #ff6b6b; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+    .status-ended   { background: rgba(136,146,176,0.15); color: #8892b0; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+    .status-pending { background: rgba(255,209,102,0.15); color: #ffd166; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+
+    .alerts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-bottom: 32px; }
+    .alert-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; display: flex; gap: 14px; align-items: flex-start; }
+    .alert-card.danger { border-color: rgba(255,107,107,0.4); background: rgba(255,107,107,0.05); }
+    .alert-card.warn   { border-color: rgba(255,209,102,0.4); background: rgba(255,209,102,0.05); }
+    .alert-card.ok     { border-color: rgba(34,197,94,0.4); background: rgba(34,197,94,0.05); }
+    .alert-icon { font-size: 1.4rem; flex-shrink: 0; }
+    .alert-body h4 { font-size: 0.88rem; font-weight: 700; margin-bottom: 4px; }
+    .alert-body p  { font-size: 0.8rem; color: var(--muted); line-height: 1.5; }
+
+    .tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 32px; }
+    .tool-chip { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+
+    footer { text-align: center; padding: 24px; color: var(--muted); font-size: 0.78rem; border-top: 1px solid var(--border); }
+    footer span { color: var(--accent2); }
+
+    @media (max-width: 768px) {
+      header { padding: 16px 20px; }
+      main { padding: 20px 12px; }
+      .charts-grid { grid-template-columns: 1fr; }
+      .table-card { overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-area">
+    <h1>DSM SaaS Spend Tracker</h1>
+    <p>Data Science Masterminds — datasciencemasterminds@gmail.com</p>
+  </div>
+  <div class="period-badge">Period: <span id="period-text">Jan 1 – Aug 2, 2026</span> &nbsp;|&nbsp; Last updated: <span id="last-updated">Aug 2, 2026</span></div>
+</header>
+
+<main>
+
+  <!-- KPI Cards -->
+  <div class="kpi-grid">
+    <div class="kpi-card purple">
+      <div class="kpi-label">Total Spend (USD equiv.)</div>
+      <div class="kpi-value purple" id="kpi-usd">$1,612</div>
+      <div class="kpi-sub">All INR converted at historical rates · Jan–Aug 2026</div>
+    </div>
+    <div class="kpi-card teal">
+      <div class="kpi-label">Total Spend (INR equiv.)</div>
+      <div class="kpi-value teal" id="kpi-inr">₹1,53,140</div>
+      <div class="kpi-sub">All USD converted at historical rates · Jan–Aug 2026</div>
+    </div>
+    <div class="kpi-card yellow">
+      <div class="kpi-label">Paid Transactions</div>
+      <div class="kpi-value yellow" id="kpi-paid">52</div>
+      <div class="kpi-sub">Jan–Aug 2026 (7 months)</div>
+    </div>
+    <div class="kpi-card red">
+      <div class="kpi-label">Failed Payments</div>
+      <div class="kpi-value red" id="kpi-failed">11</div>
+      <div class="kpi-sub">Apollo · Apify · Atlassian · HeyGen · Botbiz</div>
+    </div>
+    <div class="kpi-card blue">
+      <div class="kpi-label">Avg Monthly Spend</div>
+      <div class="kpi-value blue" id="kpi-avg">$230</div>
+      <div class="kpi-sub">~₹21,877/month over 7 months</div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-label">Cancelled / Ended</div>
+      <div class="kpi-value green" id="kpi-cancelled">6</div>
+      <div class="kpi-sub">Trello · Skool (×2) · Confluence · Apify · AI Profit Boardroom</div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-grid">
+    <div class="chart-card">
+      <h3>Monthly Spend Trend (USD equiv.)</h3>
+      <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+    </div>
+
+    <div class="chart-card">
+      <h3>Category Breakdown</h3>
+      <div class="chart-wrap"><canvas id="catChart"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <h3>Subscription Type Breakdown (USD equiv.)</h3>
+      <div class="chart-wrap"><canvas id="subTypeChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- API Spend Section -->
+  <div class="section-title">API & Credits Spend</div>
+  <div class="table-card" style="margin-bottom:32px;">
+    <table>
+      <thead>
+        <tr>
+          <th>Service</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Date</th>
+          <th>USD</th>
+          <th>INR equiv.</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="month-row"><td colspan="7">LLM API Credits</td></tr>
+        <tr>
+          <td><span class="service-name">OpenRouter</span><span class="service-tag tag-ai">LLM API</span></td>
+          <td><span class="status-paid" style="background:rgba(108,99,255,0.15);color:#a78bfa;">Credits</span></td>
+          <td>API credits — Receipt #2147-2151</td>
+          <td class="date-cell">Jun 20, 2026</td>
+          <td class="amount-usd">$10.00</td>
+          <td class="amount-inr">₹943.30</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Anthropic</span><span class="service-tag tag-ai">LLM API</span></td>
+          <td><span class="status-paid" style="background:rgba(108,99,255,0.15);color:#a78bfa;">Credits</span></td>
+          <td>Claude API credits — Invoice PS3RUNMZ-0005</td>
+          <td class="date-cell">Apr 24, 2026</td>
+          <td class="amount-usd">$50.00</td>
+          <td class="amount-inr">₹4,712.50</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr class="month-row"><td colspan="7">Infrastructure & Platform API Credits</td></tr>
+        <tr>
+          <td><span class="service-name">Google Cloud</span><span class="service-tag tag-infra">Cloud API</span></td>
+          <td><span class="status-paid" style="background:rgba(56,189,248,0.15);color:#38bdf8;">Usage</span></td>
+          <td>APIs & Services — Aug 2026</td>
+          <td class="date-cell">Aug 1, 2026</td>
+          <td class="amount-usd">~$1.41</td>
+          <td class="amount-inr">₹134.60</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Google Cloud</span><span class="service-tag tag-infra">Cloud API</span></td>
+          <td><span class="status-paid" style="background:rgba(56,189,248,0.15);color:#38bdf8;">Usage</span></td>
+          <td>APIs & Services — Jul 2026 (₹64.50)</td>
+          <td class="date-cell">Jul 3, 2026</td>
+          <td class="amount-usd">$0.68</td>
+          <td class="amount-inr">₹64.50</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Google Cloud</span><span class="service-tag tag-infra">Cloud API</span></td>
+          <td><span class="status-paid" style="background:rgba(56,189,248,0.15);color:#38bdf8;">Usage</span></td>
+          <td>APIs & Services — Jun 2026 (₹624.63)</td>
+          <td class="date-cell">Jun 3, 2026</td>
+          <td class="amount-usd">$6.53</td>
+          <td class="amount-inr">₹624.63</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Google Cloud</span><span class="service-tag tag-infra">Cloud API</span></td>
+          <td><span class="status-paid" style="background:rgba(56,189,248,0.15);color:#38bdf8;">Usage</span></td>
+          <td>APIs & Services — May 2026 (₹639.73)</td>
+          <td class="date-cell">May 3, 2026</td>
+          <td class="amount-usd">$6.73</td>
+          <td class="amount-inr">₹639.73</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Elest.io</span><span class="service-tag tag-infra">Infra</span></td>
+          <td><span class="status-paid" style="background:rgba(56,189,248,0.15);color:#38bdf8;">Credits</span></td>
+          <td>Credit top-up — Receipt #2677-4446</td>
+          <td class="date-cell">Mar 14, 2026</td>
+          <td class="amount-usd">$30.00</td>
+          <td class="amount-inr">₹2,847.00</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Elest.io</span><span class="service-tag tag-infra">Infra</span></td>
+          <td><span class="status-paid" style="background:rgba(56,189,248,0.15);color:#38bdf8;">Credits</span></td>
+          <td>Credit top-up — Receipt #2435-4492</td>
+          <td class="date-cell">Jan 24, 2026</td>
+          <td class="amount-usd">$30.00</td>
+          <td class="amount-inr">₹2,694.00</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">X Developer Platform</span><span class="service-tag tag-social">API</span></td>
+          <td><span class="status-paid" style="background:rgba(29,161,242,0.15);color:#38bdf8;">Monthly</span></td>
+          <td>API access — Receipt #2087-2099</td>
+          <td class="date-cell">Aug 1, 2026</td>
+          <td class="amount-usd">$100.00</td>
+          <td class="amount-inr">₹9,539.00</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Railway</span><span class="service-tag tag-infra">Infra API</span></td>
+          <td><span class="status-paid" style="background:rgba(56,189,248,0.15);color:#38bdf8;">Usage</span></td>
+          <td>Cloud hosting — Receipt #2551-4042 (Jul)</td>
+          <td class="date-cell">Jul 12, 2026</td>
+          <td class="amount-usd">$5.00</td>
+          <td class="amount-inr">₹476.70</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Railway</span><span class="service-tag tag-infra">Infra API</span></td>
+          <td><span class="status-paid" style="background:rgba(56,189,248,0.15);color:#38bdf8;">Usage</span></td>
+          <td>Cloud hosting — Receipt #2039-8572 (Jun)</td>
+          <td class="date-cell">Jun 11, 2026</td>
+          <td class="amount-usd">$5.00</td>
+          <td class="amount-inr">₹478.80</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Transactions Table -->
+  <div class="section-title">All Transactions</div>
+  <div class="table-card">
+    <table>
+      <thead>
+        <tr>
+          <th>Service</th>
+          <th>Description</th>
+          <th>Date</th>
+          <th>Original Amount</th>
+          <th>USD equiv.</th>
+          <th>INR equiv.</th>
+          <th>FX Rate</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+
+        <!-- AUGUST 2026 -->
+        <tr class="month-row"><td colspan="8">August 2026 <span class="month-total">— $115.14 USD equiv · ₹10,982 INR equiv</span></td></tr>
+        <tr>
+          <td><span class="service-name">X Developer Platform</span><span class="service-tag tag-social">Social</span></td>
+          <td>API access — Receipt #2087-2099 (Invoice UCGMMORH-0001)</td>
+          <td class="date-cell">Aug 1, 2026</td>
+          <td class="amount-usd">$100.00</td>
+          <td class="amount-usd">$100.00</td>
+          <td class="amount-inr">₹9,539</td>
+          <td class="fx-rate">₹95.39/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Google Workspace</span><span class="service-tag tag-gws">Workspace</span></td>
+          <td>Business Standard — Monthly Invoice (Aug 2026)</td>
+          <td class="date-cell">Aug 1, 2026</td>
+          <td class="amount-inr">₹1,345.96</td>
+          <td class="amount-usd">$14.11</td>
+          <td class="amount-inr">₹1,345.96</td>
+          <td class="fx-rate">₹95.39/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+
+        <!-- JULY 2026 -->
+        <tr class="month-row"><td colspan="8">July 2026 <span class="month-total">— $492.14 USD equiv · ₹46,875 INR equiv</span></td></tr>
+        <tr>
+          <td><span class="service-name">ElevenLabs</span><span class="service-tag tag-voice">AI Voice</span></td>
+          <td>Creator Plan — Receipt #2017-3184-2985</td>
+          <td class="date-cell">Jul 24, 2026</td>
+          <td class="amount-inr">₹2,284.48</td>
+          <td class="amount-usd">$23.67</td>
+          <td class="amount-inr">₹2,284.48</td>
+          <td class="fx-rate">₹96.56/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Grok xAI</span><span class="service-tag tag-ai">AI</span></td>
+          <td>SuperGrok — Receipt #2140-1668</td>
+          <td class="date-cell">Jul 22, 2026</td>
+          <td class="amount-usd">$30.00</td>
+          <td class="amount-usd">$30.00</td>
+          <td class="amount-inr">₹2,896</td>
+          <td class="fx-rate">₹96.56/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr style="opacity:0.65;">
+          <td><span class="service-name">Apollo.io</span><span class="service-tag tag-crm">CRM</span></td>
+          <td>Subscription payment failed — card declined</td>
+          <td class="date-cell">Jul 17, 2026</td>
+          <td class="amount-conv">—</td>
+          <td class="amount-conv">—</td>
+          <td class="amount-conv">—</td>
+          <td class="fx-rate">—</td>
+          <td><span class="status-failed">✗ FAILED</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Anomaly</span><span class="service-tag tag-ai">AI</span></td>
+          <td>OpenCode Go — Receipt #2613-0962 (Jul)</td>
+          <td class="date-cell">Jul 13, 2026</td>
+          <td class="amount-usd">$10.00</td>
+          <td class="amount-usd">$10.00</td>
+          <td class="amount-inr">₹956.20</td>
+          <td class="fx-rate">₹95.62/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Railway</span><span class="service-tag tag-infra">Infra</span></td>
+          <td>Cloud hosting — Receipt #2551-4042</td>
+          <td class="date-cell">Jul 12, 2026</td>
+          <td class="amount-usd">$5.00</td>
+          <td class="amount-usd">$5.00</td>
+          <td class="amount-inr">₹476.70</td>
+          <td class="fx-rate">₹95.34/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Atlassian</span><span class="service-tag tag-infra">Workspace</span></td>
+          <td>Invoice IN-007-305-505 (Jira/Loom)</td>
+          <td class="date-cell">Jul 11, 2026</td>
+          <td class="amount-conv">See PDF</td>
+          <td class="amount-conv">~$50</td>
+          <td class="amount-inr">~₹4,767</td>
+          <td class="fx-rate">₹95.34/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Video Preneur Studios</span><span class="service-tag tag-learn">Learning</span></td>
+          <td>8-Week Cohort Program — HarryFull Payment (Razorpay)</td>
+          <td class="date-cell">Jul 5, 2026</td>
+          <td class="amount-inr">₹33,398</td>
+          <td class="amount-usd">$350.71</td>
+          <td class="amount-inr">₹33,398</td>
+          <td class="fx-rate">₹95.21/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Video Preneur Studios</span><span class="service-tag tag-learn">Learning</span></td>
+          <td>12 Viral AI Film Making Challenge Token (Razorpay)</td>
+          <td class="date-cell">Jul 5, 2026</td>
+          <td class="amount-inr">₹1,999</td>
+          <td class="amount-usd">$20.99</td>
+          <td class="amount-inr">₹1,999</td>
+          <td class="fx-rate">₹95.21/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Google Cloud</span><span class="service-tag tag-infra">Cloud</span></td>
+          <td>APIs & Services — Payment (Jul)</td>
+          <td class="date-cell">Jul 3, 2026</td>
+          <td class="amount-inr">₹64.50</td>
+          <td class="amount-usd">$0.68</td>
+          <td class="amount-inr">₹64.50</td>
+          <td class="fx-rate">₹95.21/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Google Workspace</span><span class="service-tag tag-gws">Workspace</span></td>
+          <td>Business Standard — Monthly Invoice (Jul 2026)</td>
+          <td class="date-cell">Jul 1, 2026</td>
+          <td class="amount-inr">₹1,345.96</td>
+          <td class="amount-usd">$14.13</td>
+          <td class="amount-inr">₹1,345.96</td>
+          <td class="fx-rate">₹95.25/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+
+        <!-- JUNE 2026 -->
+        <tr class="month-row"><td colspan="8">June 2026 <span class="month-total">— $219.67 USD equiv · ₹20,942 INR equiv</span></td></tr>
+        <tr>
+          <td><span class="service-name">ElevenLabs</span><span class="service-tag tag-voice">AI Voice</span></td>
+          <td>Creator Plan — Receipt #2387-9548-7256</td>
+          <td class="date-cell">Jun 24, 2026</td>
+          <td class="amount-inr">₹2,284.48</td>
+          <td class="amount-usd">$24.13</td>
+          <td class="amount-inr">₹2,284.48</td>
+          <td class="fx-rate">₹94.67/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Grok xAI</span><span class="service-tag tag-ai">AI</span></td>
+          <td>SuperGrok — Receipt #2334-8980</td>
+          <td class="date-cell">Jun 22, 2026</td>
+          <td class="amount-usd">$30.00</td>
+          <td class="amount-usd">$30.00</td>
+          <td class="amount-inr">₹2,840.40</td>
+          <td class="fx-rate">₹94.68/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">OpenRouter</span><span class="service-tag tag-ai">AI API</span></td>
+          <td>API credits — Receipt #2147-2151</td>
+          <td class="date-cell">Jun 20, 2026</td>
+          <td class="amount-usd">$10.00</td>
+          <td class="amount-usd">$10.00</td>
+          <td class="amount-inr">₹943.30</td>
+          <td class="fx-rate">₹94.33/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr style="opacity:0.65;">
+          <td><span class="service-name">Skool</span><span class="service-tag tag-learn">Learning</span></td>
+          <td>AI Profit Boardroom — subscription cancelled</td>
+          <td class="date-cell">Jun 18, 2026</td>
+          <td class="amount-conv">—</td>
+          <td class="amount-conv">—</td>
+          <td class="amount-conv">—</td>
+          <td class="fx-rate">—</td>
+          <td><span class="status-ended">⊘ CANCELLED</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Apollo.io</span><span class="service-tag tag-crm">CRM</span></td>
+          <td>Basic plan — Receipt #2617-5662</td>
+          <td class="date-cell">Jun 16, 2026</td>
+          <td class="amount-usd">$49.00</td>
+          <td class="amount-usd">$49.00</td>
+          <td class="amount-inr">₹4,633.44</td>
+          <td class="fx-rate">₹94.56/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr style="opacity:0.65;">
+          <td><span class="service-name">Apollo.io</span><span class="service-tag tag-crm">CRM</span></td>
+          <td>Payment failed — card declined</td>
+          <td class="date-cell">Jun 16, 2026</td>
+          <td class="amount-conv">—</td>
+          <td class="amount-conv">—</td>
+          <td class="amount-conv">—</td>
+          <td class="fx-rate">—</td>
+          <td><span class="status-failed">✗ FAILED</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Anomaly</span><span class="service-tag tag-ai">AI</span></td>
+          <td>OpenCode Go — Receipt #2613-0962</td>
+          <td class="date-cell">Jun 13, 2026</td>
+          <td class="amount-usd">$10.00</td>
+          <td class="amount-usd">$10.00</td>
+          <td class="amount-inr">₹951.20</td>
+          <td class="fx-rate">₹95.12/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Railway</span><span class="service-tag tag-infra">Infra</span></td>
+          <td>Cloud hosting — Receipt #2039-8572</td>
+          <td class="date-cell">Jun 11, 2026</td>
+          <td class="amount-usd">$5.00</td>
+          <td class="amount-usd">$5.00</td>
+          <td class="amount-inr">₹478.80</td>
+          <td class="fx-rate">₹95.76/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Atlassian</span><span class="service-tag tag-infra">Workspace</span></td>
+          <td>Invoice IN-006-936-782 (Jira/Loom)</td>
+          <td class="date-cell">Jun 11, 2026</td>
+          <td class="amount-conv">See PDF</td>
+          <td class="amount-conv">~$50</td>
+          <td class="amount-inr">~₹4,788</td>
+          <td class="fx-rate">₹95.76/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Google Cloud</span><span class="service-tag tag-infra">Cloud</span></td>
+          <td>APIs & Services — ₹1.13 + ₹623.50</td>
+          <td class="date-cell">Jun 3, 2026</td>
+          <td class="amount-inr">₹624.63</td>
+          <td class="amount-usd">$6.53</td>
+          <td class="amount-inr">₹624.63</td>
+          <td class="fx-rate">₹95.71/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Google Workspace</span><span class="service-tag tag-gws">Workspace</span></td>
+          <td>Business Standard — Monthly Invoice (Jun 2026)</td>
+          <td class="date-cell">Jun 1, 2026</td>
+          <td class="amount-inr">₹1,345.96</td>
+          <td class="amount-usd">$14.17</td>
+          <td class="amount-inr">₹1,345.96</td>
+          <td class="fx-rate">₹94.99/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+
+        <!-- MAY 2026 -->
+        <tr class="month-row"><td colspan="8">May 2026 <span class="month-total">— $420.89 USD equiv · ₹40,122 INR equiv</span></td></tr>
+        <tr>
+          <td><span class="service-name">ElevenLabs</span><span class="service-tag tag-voice">AI Voice</span></td>
+          <td>Creator Plan — Receipt #2489-0449-4818</td>
+          <td class="date-cell">May 24, 2026</td>
+          <td class="amount-inr">₹2,284.48</td>
+          <td class="amount-usd">$23.87</td>
+          <td class="amount-inr">₹2,284.48</td>
+          <td class="fx-rate">₹95.70/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Grok xAI</span><span class="service-tag tag-ai">AI</span></td>
+          <td>SuperGrok — Receipt #2319-0935</td>
+          <td class="date-cell">May 22, 2026</td>
+          <td class="amount-usd">$30.00</td>
+          <td class="amount-usd">$30.00</td>
+          <td class="amount-inr">₹2,871.00</td>
+          <td class="fx-rate">₹95.70/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Skool</span><span class="service-tag tag-learn">Learning</span></td>
+          <td>AI Profit Boardroom — new membership (AMEX 1000)</td>
+          <td class="date-cell">May 18, 2026</td>
+          <td class="amount-usd">$59.00</td>
+          <td class="amount-usd">$59.00</td>
+          <td class="amount-inr">₹5,684.65</td>
+          <td class="fx-rate">₹96.35/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr style="opacity:0.65;">
+          <td><span class="service-name">Skool</span><span class="service-tag tag-learn">Learning</span></td>
+          <td>AI Automations by Jack — cancelled</td>
+          <td class="date-cell">May 18, 2026</td>
+          <td class="amount-conv">—</td><td class="amount-conv">—</td><td class="amount-conv">—</td>
+          <td class="fx-rate">—</td>
+          <td><span class="status-ended">⊘ CANCELLED</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">HeyGen</span><span class="service-tag tag-ai">AI Video</span></td>
+          <td>Creator Platform — Annual (May 2026–May 2027)</td>
+          <td class="date-cell">May 11, 2026</td>
+          <td class="amount-usd">$288.00</td>
+          <td class="amount-usd">$288.00</td>
+          <td class="amount-inr">₹27,561.60</td>
+          <td class="fx-rate">₹95.70/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Atlassian</span><span class="service-tag tag-infra">Workspace</span></td>
+          <td>Invoice IN-006-574-612 (Jira/Loom)</td>
+          <td class="date-cell">May 11, 2026</td>
+          <td class="amount-conv">See PDF</td>
+          <td class="amount-conv">~$50</td>
+          <td class="amount-inr">~₹4,785</td>
+          <td class="fx-rate">₹95.70/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Anomaly</span><span class="service-tag tag-ai">AI</span></td>
+          <td>OpenCode Go — Receipt #2619-8622 (1st month 50% off)</td>
+          <td class="date-cell">May 12, 2026</td>
+          <td class="amount-usd">$5.00</td>
+          <td class="amount-usd">$5.00</td>
+          <td class="amount-inr">₹478.50</td>
+          <td class="fx-rate">₹95.70/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Google Workspace</span><span class="service-tag tag-gws">Workspace</span></td>
+          <td>Business Standard — Monthly Invoice (May 2026)</td>
+          <td class="date-cell">May 4, 2026</td>
+          <td class="amount-inr">₹1,345.96</td>
+          <td class="amount-usd">$14.17</td>
+          <td class="amount-inr">₹1,345.96</td>
+          <td class="fx-rate">₹94.99/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Google Cloud</span><span class="service-tag tag-infra">Cloud</span></td>
+          <td>APIs & Services — ₹635.05 + ₹4.68</td>
+          <td class="date-cell">May 3, 2026</td>
+          <td class="amount-inr">₹639.73</td>
+          <td class="amount-usd">$6.73</td>
+          <td class="amount-inr">₹639.73</td>
+          <td class="fx-rate">₹95.07/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr style="opacity:0.65;">
+          <td><span class="service-name">HeyGen</span><span class="service-tag tag-ai">AI Video</span></td>
+          <td>Monthly charge failed — card 5842 declined</td>
+          <td class="date-cell">May 1, 2026</td>
+          <td class="amount-conv">$29.00</td><td class="amount-conv">—</td><td class="amount-conv">—</td>
+          <td class="fx-rate">—</td>
+          <td><span class="status-failed">✗ FAILED</span></td>
+        </tr>
+
+        <!-- APRIL 2026 -->
+        <tr class="month-row"><td colspan="8">April 2026 <span class="month-total">— $252.22 USD equiv · ₹23,999 INR equiv</span></td></tr>
+        <tr>
+          <td><span class="service-name">Anthropic</span><span class="service-tag tag-ai">AI</span></td>
+          <td>Claude API credits — Invoice PS3RUNMZ-0005</td>
+          <td class="date-cell">Apr 24, 2026</td>
+          <td class="amount-usd">$50.00</td>
+          <td class="amount-usd">$50.00</td>
+          <td class="amount-inr">₹4,712.50</td>
+          <td class="fx-rate">₹94.25/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">ElevenLabs</span><span class="service-tag tag-voice">AI Voice</span></td>
+          <td>Creator Plan — incl. 18% GST</td>
+          <td class="date-cell">Apr 24, 2026</td>
+          <td class="amount-inr">₹2,284.48</td>
+          <td class="amount-usd">$24.23</td>
+          <td class="amount-inr">₹2,284.48</td>
+          <td class="fx-rate">₹94.25/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Botbiz</span><span class="service-tag tag-ai">AI Chat</span></td>
+          <td>Growth Yearly — incl. GST</td>
+          <td class="date-cell">Apr 22, 2026</td>
+          <td class="amount-inr">₹7,646.40</td>
+          <td class="amount-usd">$82.22</td>
+          <td class="amount-inr">₹7,646.40</td>
+          <td class="fx-rate">₹93.00/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Skool</span><span class="service-tag tag-learn">Learning</span></td>
+          <td>AI Automations by Jack — monthly membership</td>
+          <td class="date-cell">Apr 22, 2026</td>
+          <td class="amount-usd">$77.00</td>
+          <td class="amount-usd">$77.00</td>
+          <td class="amount-inr">₹7,161.00</td>
+          <td class="fx-rate">₹93.00/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Atlassian</span><span class="service-tag tag-infra">Workspace</span></td>
+          <td>Monthly invoice (Apr 2026)</td>
+          <td class="date-cell">Apr 11, 2026</td>
+          <td class="amount-conv">See PDF</td>
+          <td class="amount-conv">~$50</td>
+          <td class="amount-inr">~₹4,700</td>
+          <td class="fx-rate">₹94.00/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Google Workspace</span><span class="service-tag tag-gws">Workspace</span></td>
+          <td>Business Standard — Monthly Invoice (Apr 2026)</td>
+          <td class="date-cell">Apr 4, 2026</td>
+          <td class="amount-inr">₹1,345.96</td>
+          <td class="amount-usd">$14.32</td>
+          <td class="amount-inr">₹1,345.96</td>
+          <td class="fx-rate">₹94.00/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+
+        <!-- MARCH 2026 -->
+        <tr class="month-row"><td colspan="8">March 2026 <span class="month-total">— $192.29 USD equiv · ₹18,272 INR equiv</span></td></tr>
+        <tr>
+          <td><span class="service-name">HeyGen</span><span class="service-tag tag-ai">AI Video</span></td>
+          <td>Creator Platform — Monthly ×2 (Mar)</td>
+          <td class="date-cell">Mar 2026</td>
+          <td class="amount-usd">$58.00</td>
+          <td class="amount-usd">$58.00</td>
+          <td class="amount-inr">₹5,506</td>
+          <td class="fx-rate">₹94.93/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">ElevenLabs</span><span class="service-tag tag-voice">AI Voice</span></td>
+          <td>Creator Plan (Mar)</td>
+          <td class="date-cell">Mar 24, 2026</td>
+          <td class="amount-inr">₹2,284.48</td>
+          <td class="amount-usd">$24.07</td>
+          <td class="amount-inr">₹2,284.48</td>
+          <td class="fx-rate">₹94.93/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Elest.io</span><span class="service-tag tag-infra">Infra</span></td>
+          <td>Credit top-up — Receipt #2677-4446</td>
+          <td class="date-cell">Mar 14, 2026</td>
+          <td class="amount-usd">$30.00</td>
+          <td class="amount-usd">$30.00</td>
+          <td class="amount-inr">₹2,847</td>
+          <td class="fx-rate">₹94.90/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Bolna</span><span class="service-tag tag-ai">AI Voice</span></td>
+          <td>Monthly subscription (Mar)</td>
+          <td class="date-cell">Mar 2026</td>
+          <td class="amount-usd">$5.00</td>
+          <td class="amount-usd">$5.00</td>
+          <td class="amount-inr">₹474.65</td>
+          <td class="fx-rate">₹94.93/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Atlassian</span><span class="service-tag tag-infra">Workspace</span></td>
+          <td>Monthly invoice (Mar 2026)</td>
+          <td class="date-cell">Mar 11, 2026</td>
+          <td class="amount-conv">See PDF</td>
+          <td class="amount-conv">~$50</td>
+          <td class="amount-inr">~₹4,747</td>
+          <td class="fx-rate">₹94.93/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Google Workspace</span><span class="service-tag tag-gws">Workspace</span></td>
+          <td>Business Standard — Monthly Invoice (Mar 2026)</td>
+          <td class="date-cell">Mar 4, 2026</td>
+          <td class="amount-inr">₹1,345.96</td>
+          <td class="amount-usd">$14.18</td>
+          <td class="amount-inr">₹1,345.96</td>
+          <td class="fx-rate">₹94.93/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr style="opacity:0.65;">
+          <td><span class="service-name">Apify</span><span class="service-tag tag-dev">Dev</span></td>
+          <td>Subscription payment failed</td>
+          <td class="date-cell">Mar 2026</td>
+          <td class="amount-conv">$29.00</td><td class="amount-conv">—</td><td class="amount-conv">—</td>
+          <td class="fx-rate">—</td>
+          <td><span class="status-failed">✗ FAILED</span></td>
+        </tr>
+
+        <!-- FEBRUARY 2026 -->
+        <tr class="month-row"><td colspan="8">February 2026 <span class="month-total">— $34.64 USD equiv · ₹3,294 INR equiv</span></td></tr>
+        <tr>
+          <td><span class="service-name">Bolna</span><span class="service-tag tag-ai">AI Voice</span></td>
+          <td>Monthly subscription (Feb)</td>
+          <td class="date-cell">Feb 2026</td>
+          <td class="amount-usd">$5.00</td>
+          <td class="amount-usd">$5.00</td>
+          <td class="amount-inr">₹455.30</td>
+          <td class="fx-rate">₹91.06/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Atlassian</span><span class="service-tag tag-infra">Workspace</span></td>
+          <td>Monthly invoice (Feb 2026)</td>
+          <td class="date-cell">Feb 11, 2026</td>
+          <td class="amount-conv">See PDF</td>
+          <td class="amount-conv">~$15</td>
+          <td class="amount-inr">~₹1,366</td>
+          <td class="fx-rate">₹91.06/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Google Workspace</span><span class="service-tag tag-gws">Workspace</span></td>
+          <td>Business Standard — Monthly Invoice (Feb 2026)</td>
+          <td class="date-cell">Feb 4, 2026</td>
+          <td class="amount-inr">₹1,345.96</td>
+          <td class="amount-usd">$14.78</td>
+          <td class="amount-inr">₹1,345.96</td>
+          <td class="fx-rate">₹91.06/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr style="opacity:0.65;">
+          <td><span class="service-name">Apify</span><span class="service-tag tag-dev">Dev</span></td>
+          <td>Subscription payment failed</td>
+          <td class="date-cell">Feb 2026</td>
+          <td class="amount-conv">$29.00</td><td class="amount-conv">—</td><td class="amount-conv">—</td>
+          <td class="fx-rate">—</td>
+          <td><span class="status-failed">✗ FAILED</span></td>
+        </tr>
+        <tr style="opacity:0.65;">
+          <td><span class="service-name">Atlassian</span><span class="service-tag tag-infra">Workspace</span></td>
+          <td>3DS authentication failed</td>
+          <td class="date-cell">Feb 2026</td>
+          <td class="amount-conv">—</td><td class="amount-conv">—</td><td class="amount-conv">—</td>
+          <td class="fx-rate">—</td>
+          <td><span class="status-failed">✗ FAILED</span></td>
+        </tr>
+
+        <!-- JANUARY 2026 -->
+        <tr class="month-row"><td colspan="8">January 2026 <span class="month-total">— $101.51 USD equiv · ₹9,253 INR equiv</span></td></tr>
+        <tr>
+          <td><span class="service-name">Freepik</span><span class="service-tag tag-ai">Design</span></td>
+          <td>Annual Premium — INV-C-2026-13540088 (Jan 2026–Jan 2027)</td>
+          <td class="date-cell">Jan 18, 2026</td>
+          <td class="amount-inr">₹5,568.00</td>
+          <td class="amount-usd">$62.01</td>
+          <td class="amount-inr">₹5,568.00</td>
+          <td class="fx-rate">₹89.79/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Elest.io</span><span class="service-tag tag-infra">Infra</span></td>
+          <td>Credit top-up — Receipt #2435-4492</td>
+          <td class="date-cell">Jan 24, 2026</td>
+          <td class="amount-usd">$30.00</td>
+          <td class="amount-usd">$30.00</td>
+          <td class="amount-inr">₹2,694.00</td>
+          <td class="fx-rate">₹89.80/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">WasenderAPI</span><span class="service-tag tag-ai">AI Chat</span></td>
+          <td>Annual subscription</td>
+          <td class="date-cell">Jan 2026</td>
+          <td class="amount-inr">₹5,523.00</td>
+          <td class="amount-usd">$61.51</td>
+          <td class="amount-inr">₹5,523.00</td>
+          <td class="fx-rate">₹89.79/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Bolna</span><span class="service-tag tag-ai">AI Voice</span></td>
+          <td>Monthly subscription (Jan)</td>
+          <td class="date-cell">Jan 2026</td>
+          <td class="amount-usd">$5.00</td>
+          <td class="amount-usd">$5.00</td>
+          <td class="amount-inr">₹448.95</td>
+          <td class="fx-rate">₹89.79/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+        <tr>
+          <td><span class="service-name">Google Workspace</span><span class="service-tag tag-gws">Workspace</span></td>
+          <td>Business Standard — Monthly Invoice (Jan 2026)</td>
+          <td class="date-cell">Jan 4, 2026</td>
+          <td class="amount-inr">₹1,345.96</td>
+          <td class="amount-usd">$14.99</td>
+          <td class="amount-inr">₹1,345.96</td>
+          <td class="fx-rate">₹89.79/$</td>
+          <td><span class="status-paid">✓ PAID</span></td>
+        </tr>
+
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Alerts -->
+  <div class="section-title">Action Items & Alerts</div>
+  <div class="alerts-grid">
+    <div class="alert-card danger">
+      <div class="alert-icon">⚠️</div>
+      <div class="alert-body">
+        <h4>Apollo.io — Repeated Payment Failures</h4>
+        <p>Card declined in Jun 16 and Jul 17, 2026. Update payment method at apollo.io to avoid service interruption.</p>
+      </div>
+    </div>
+    <div class="alert-card danger">
+      <div class="alert-icon">⚠️</div>
+      <div class="alert-body">
+        <h4>Confluence Deactivated — Jun 1, 2026</h4>
+        <p>Atlassian deactivated Confluence due to inactivity. Log in to reactivate or cancel to stop future Atlassian invoice charges.</p>
+      </div>
+    </div>
+    <div class="alert-card warn">
+      <div class="alert-icon">💡</div>
+      <div class="alert-body">
+        <h4>Video Preneur Studios — ₹35,397 in Jul</h4>
+        <p>Large one-time spend: ₹33,398 (8-week cohort) + ₹1,999 (AI Film Challenge). Largest single-month INR spend to date.</p>
+      </div>
+    </div>
+    <div class="alert-card warn">
+      <div class="alert-icon">🆕</div>
+      <div class="alert-body">
+        <h4>New Services Added — Jun/Jul/Aug 2026</h4>
+        <p>Railway.app ($5/mo), Apollo.io ($49/mo), OpenRouter ($10 credits), X Developer Platform ($100/mo) all added this period.</p>
+      </div>
+    </div>
+    <div class="alert-card ok">
+      <div class="alert-icon">✅</div>
+      <div class="alert-body">
+        <h4>HeyGen Switched to Annual — May 11, 2026</h4>
+        <p>$288/year vs $29/month — saving ~$60/year. Next renewal May 11, 2027.</p>
+      </div>
+    </div>
+    <div class="alert-card ok">
+      <div class="alert-icon">🔄</div>
+      <div class="alert-body">
+        <h4>Skool Communities Switched — May & Jun 2026</h4>
+        <p>Cancelled "AI Automations by Jack" ($77/mo) → Joined "AI Profit Boardroom" ($59/mo) → Also cancelled Jun 18. Net saving: $77/mo.</p>
+      </div>
+    </div>
+    <div class="alert-card warn">
+      <div class="alert-icon">🔍</div>
+      <div class="alert-body">
+        <h4>Genspark & Higgsfield — No Billing Emails Found</h4>
+        <p>Insufficient credit alerts for Genspark; Higgsfield login alert only. Check billing portals directly for receipts.</p>
+      </div>
+    </div>
+    <div class="alert-card ok">
+      <div class="alert-icon">📉</div>
+      <div class="alert-body">
+        <h4>Trello Premium Ended — May 2, 2026</h4>
+        <p>Now on Free plan. Upgrade if advanced features are needed.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Active Tools -->
+  <div class="section-title">Active Tools (No Billing Email This Period)</div>
+  <div class="tools-grid">
+    <div class="tool-chip">
+      <div class="kpi-label">Loom</div>
+      <div style="font-size:0.9rem;font-weight:600;color:#00d4aa;margin:6px 0;">via Atlassian</div>
+      <div class="kpi-sub">Active usage observed</div>
+    </div>
+    <div class="tool-chip">
+      <div class="kpi-label">Perplexity AI</div>
+      <div style="font-size:0.9rem;font-weight:600;color:#a78bfa;margin:6px 0;">Marketing emails</div>
+      <div class="kpi-sub">No billing receipt</div>
+    </div>
+    <div class="tool-chip">
+      <div class="kpi-label">ChatGPT / OpenAI</div>
+      <div style="font-size:0.9rem;font-weight:600;color:#a78bfa;margin:6px 0;">Marketing emails</div>
+      <div class="kpi-sub">No billing receipt</div>
+    </div>
+    <div class="tool-chip">
+      <div class="kpi-label">Make.com</div>
+      <div style="font-size:0.9rem;font-weight:600;color:#a78bfa;margin:6px 0;">Product updates</div>
+      <div class="kpi-sub">No billing receipt</div>
+    </div>
+    <div class="tool-chip">
+      <div class="kpi-label">Genspark</div>
+      <div style="font-size:0.9rem;font-weight:600;color:#ffd166;margin:6px 0;">Check Billing</div>
+      <div class="kpi-sub">Credit alerts found — no receipt</div>
+    </div>
+    <div class="tool-chip">
+      <div class="kpi-label">Higgsfield AI</div>
+      <div style="font-size:0.9rem;font-weight:600;color:#ffd166;margin:6px 0;">Check Billing</div>
+      <div class="kpi-sub">Login alert only — no receipt</div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  Generated by <span>DSM SaaS Spend Tracker</span> · Data Science Masterminds · Jan 1 – Aug 2, 2026 · Last updated: Aug 2, 2026 · FX rates via Frankfurter API
+</footer>
+
+<script>
+const SUPABASE_URL = 'https://yntdrviikfsedihhcfdy.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InludGRydmlpa2ZzZWRpaGhjZmR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIzMzQ0MTQsImV4cCI6MjA3NzkxMDQxNH0.4J4PcqMGhFXIws4122cPE3UlWkkotbE5ynzAQZyR1iI';
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let trendChartInst, subTypeChartInst, catChartInst;
+
+async function loadDashboard() {
+  const { data: txns, error } = await supabase
+    .from('saas_transactions')
+    .select('*')
+    .order('transaction_date', { ascending: true });
+
+  if (error) { console.error('Supabase error:', error); return; }
+
+  const paid = txns.filter(t => t.status === 'paid');
+  const failed = txns.filter(t => t.status === 'failed');
+  const cancelled = txns.filter(t => ['cancelled','ended'].includes(t.status));
+
+  const totalUSD = paid.reduce((s, t) => s + parseFloat(t.amount_usd || 0), 0);
+  const totalINR = paid.reduce((s, t) => s + parseFloat(t.amount_inr || 0), 0);
+  const avgMonthly = totalUSD / 7;
+
+  // Update KPI cards
+  document.getElementById('kpi-usd').textContent = '$' + Math.round(totalUSD).toLocaleString();
+  document.getElementById('kpi-inr').textContent = '\u20b9' + Math.round(totalINR).toLocaleString();
+  document.getElementById('kpi-paid').textContent = paid.length;
+  document.getElementById('kpi-failed').textContent = failed.length;
+  document.getElementById('kpi-avg').textContent = '$' + Math.round(avgMonthly);
+  document.getElementById('kpi-cancelled').textContent = cancelled.length;
+
+  // Update period badge
+  const dates = paid.map(t => t.transaction_date).sort();
+  if (dates.length) {
+    const from = new Date(dates[0]).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'});
+    const to = new Date(dates[dates.length-1]).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'});
+    document.getElementById('period-text').textContent = from + ' \u2013 ' + to;
+    document.getElementById('last-updated').textContent = new Date().toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'});
+  }
+
+  // Build monthly data for charts
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const monthlyTrend = Array(12).fill(0);
+  const monthlyMonthly = Array(12).fill(0);
+  const monthlyAnnual = Array(12).fill(0);
+  const monthlyLLM = Array(12).fill(0);
+  const monthlyInfra = Array(12).fill(0);
+  const catTotals = {ai:0, learning:0, infra:0, social:0};
+
+  paid.forEach(t => {
+    const m = new Date(t.transaction_date).getMonth();
+    const usd = parseFloat(t.amount_usd || 0);
+    monthlyTrend[m] += usd;
+    if (t.subscription_type === 'monthly') monthlyMonthly[m] += usd;
+    else if (t.subscription_type === 'annual') monthlyAnnual[m] += usd;
+    else if (t.subscription_type === 'llm_api') monthlyLLM[m] += usd;
+    else if (t.subscription_type === 'infra_api') monthlyInfra[m] += usd;
+    else monthlyMonthly[m] += usd; // one_time goes to monthly bar
+
+    const cat = (t.category || '').toLowerCase();
+    if (cat.includes('ai')) catTotals.ai += usd;
+    else if (cat.includes('learn')) catTotals.learning += usd;
+    else if (cat.includes('infra') || cat.includes('workspace')) catTotals.infra += usd;
+    else catTotals.social += usd;
+  });
+
+  // Find active months (non-zero)
+  const activeMonths = months.filter((_, i) => monthlyTrend[i] > 0);
+  const trendData = monthlyTrend.filter(v => v > 0 || months.indexOf(months[monthlyTrend.indexOf(v)]) < 8);
+  const slicedMonths = months.slice(0, 8);
+  const slicedTrend = monthlyTrend.slice(0, 8).map(v => Math.round(v * 100) / 100);
+  const slicedMonthly = monthlyMonthly.slice(0, 8).map(v => Math.round(v * 100) / 100);
+  const slicedAnnual = monthlyAnnual.slice(0, 8).map(v => Math.round(v * 100) / 100);
+  const slicedLLM = monthlyLLM.slice(0, 8).map(v => Math.round(v * 100) / 100);
+  const slicedInfra = monthlyInfra.slice(0, 8).map(v => Math.round(v * 100) / 100);
+
+  // Render/update charts
+  if (trendChartInst) trendChartInst.destroy();
+  trendChartInst = new Chart(document.getElementById('trendChart'), {
+    type: 'bar',
+    data: {
+      labels: slicedMonths,
+      datasets: [{ label: 'USD Equiv.', data: slicedTrend,
+        backgroundColor: slicedMonths.map((_, i) => i === slicedMonths.length - 1 ? '#00d4aa' : '#6c63ff'),
+        borderRadius: 6 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8892b0' } },
+        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8892b0', callback: v => '$'+v } }
+      }
+    }
+  });
+
+  if (subTypeChartInst) subTypeChartInst.destroy();
+  subTypeChartInst = new Chart(document.getElementById('subTypeChart'), {
+    type: 'bar',
+    data: {
+      labels: slicedMonths,
+      datasets: [
+        { label: 'Monthly Subscriptions', data: slicedMonthly, backgroundColor: '#6c63ff', borderRadius: 4, stack: 'stack' },
+        { label: 'Annual Subscriptions', data: slicedAnnual, backgroundColor: '#00d4aa', borderRadius: 4, stack: 'stack' },
+        { label: 'LLM API Credits', data: slicedLLM, backgroundColor: '#ffd166', borderRadius: 4, stack: 'stack' },
+        { label: 'Infra / Platform APIs', data: slicedInfra, backgroundColor: '#38bdf8', borderRadius: 4, stack: 'stack' }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { color: '#8892b0', font: { size: 11 }, boxWidth: 12 } } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8892b0' }, stacked: true },
+        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#8892b0', callback: v => '$'+v }, stacked: true }
+      }
+    }
+  });
+
+  if (catChartInst) catChartInst.destroy();
+  const aiTotal = Math.round(catTotals.ai);
+  const learnTotal = Math.round(catTotals.learning);
+  const infraTotal = Math.round(catTotals.infra);
+  const socialTotal = Math.round(catTotals.social);
+  catChartInst = new Chart(document.getElementById('catChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['AI Tools & APIs ($'+aiTotal+')', 'Learning ($'+learnTotal+')', 'Workspace & Infra ($'+infraTotal+')', 'Social/Dev ($'+socialTotal+')'],
+      datasets: [{ data: [aiTotal, learnTotal, infraTotal, socialTotal],
+        backgroundColor: ['#6c63ff','#ffd166','#00d4aa','#38bdf8'],
+        borderWidth: 2, borderColor: '#1a1d27' }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { color: '#8892b0', font: { size: 11 }, boxWidth: 14 } } },
+      cutout: '55%'
+    }
+  });
+}
+
+loadDashboard();
+
+
+</script>
+</body>
+</html>
