@@ -39,6 +39,21 @@
   .loading-bar { height: 3px; background: linear-gradient(90deg, var(--accent), var(--green)); animation: loading 1.5s ease-in-out infinite; }
   @keyframes loading { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
+  /* Tabs */
+  .tabs-nav {
+    display: flex; gap: 0; border-bottom: 1px solid var(--border);
+    background: #12151f; padding: 0 24px;
+  }
+  .tab-btn {
+    background: none; border: none; color: var(--muted); font-size: 0.85rem; font-weight: 600;
+    padding: 14px 20px; cursor: pointer; border-bottom: 2px solid transparent;
+    transition: color 0.2s, border-color 0.2s; letter-spacing: 0.3px;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
   main { max-width: 1400px; margin: 0 auto; padding: 28px 24px; }
 
   .section-title {
@@ -60,6 +75,8 @@
   .kpi-card.failed::before { background: linear-gradient(90deg, var(--red), #ff9999); }
   .kpi-card.avg::before { background: linear-gradient(90deg, var(--yellow), #ffe599); }
   .kpi-card.cancelled::before { background: linear-gradient(90deg, var(--orange), #fdba74); }
+  .kpi-card.refunded::before { background: linear-gradient(90deg, var(--red), #ff9999); }
+  .kpi-card.net::before { background: linear-gradient(90deg, var(--green), #00ffcc); }
   .kpi-label { font-size: 0.72rem; font-weight: 600; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
   .kpi-value { font-size: 2rem; font-weight: 800; color: #fff; line-height: 1; }
   .kpi-sub { font-size: 0.75rem; color: var(--muted); margin-top: 6px; }
@@ -96,6 +113,8 @@
   .amount-inr { color: var(--green); font-weight: 600; font-family: monospace; }
   .amount-muted { color: var(--muted); font-family: monospace; }
   .status-paid { background: rgba(0,212,170,0.15); color: var(--green); padding: 3px 9px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
+  .status-activated { background: rgba(56,189,248,0.15); color: var(--blue); padding: 3px 9px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
+  .status-refunded { background: rgba(255,107,107,0.15); color: var(--red); padding: 3px 9px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
   .status-failed { background: rgba(255,107,107,0.15); color: var(--red); padding: 3px 9px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
   .status-cancelled { background: rgba(249,115,22,0.15); color: var(--orange); padding: 3px 9px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
   .status-ended { background: rgba(136,146,176,0.15); color: var(--muted); padding: 3px 9px; border-radius: 10px; font-size: 0.72rem; font-weight: 700; white-space: nowrap; }
@@ -128,6 +147,9 @@
   .tools-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
   .tool-chip { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px; text-align: center; }
 
+  /* AppSumo year badge */
+  .year-badge { display: inline-block; background: rgba(108,99,255,0.15); color: var(--accent); font-size: 0.7rem; font-weight: 700; padding: 2px 8px; border-radius: 8px; margin-left: 6px; }
+
   footer {
     text-align: center; padding: 24px; color: var(--muted); font-size: 0.78rem;
     border-top: 1px solid var(--border); margin-top: 40px;
@@ -153,6 +175,14 @@
   </div>
 </header>
 
+<!-- Tab Navigation -->
+<div class="tabs-nav">
+  <button class="tab-btn active" onclick="switchTab('saas-tab', this)">SaaS Spends</button>
+  <button class="tab-btn" onclick="switchTab('appsumo-tab', this)">AppSumo Purchases</button>
+</div>
+
+<!-- ===================== TAB 1: SaaS Spends ===================== -->
+<div id="saas-tab" class="tab-panel active">
 <main>
   <!-- KPI Cards -->
   <div class="section-title">Overview</div>
@@ -301,6 +331,88 @@
     </div>
   </div>
 </main>
+</div>
+
+<!-- ===================== TAB 2: AppSumo Purchases ===================== -->
+<div id="appsumo-tab" class="tab-panel">
+<main>
+  <!-- AppSumo KPI Cards -->
+  <div class="section-title">AppSumo Overview — Nov 2020 to Apr 2026</div>
+  <div class="kpi-grid">
+    <div class="kpi-card usd">
+      <div class="kpi-label">Total Products</div>
+      <div class="kpi-value" id="as-total"><span class="spinner"></span></div>
+      <div class="kpi-sub">All AppSumo purchases</div>
+    </div>
+    <div class="kpi-card paid">
+      <div class="kpi-label">Paid / Activated</div>
+      <div class="kpi-value" id="as-paid"><span class="spinner"></span></div>
+      <div class="kpi-sub">Kept &amp; activated</div>
+    </div>
+    <div class="kpi-card refunded">
+      <div class="kpi-label">Refunded</div>
+      <div class="kpi-value" id="as-refunded"><span class="spinner"></span></div>
+      <div class="kpi-sub">Returned within 60 days</div>
+    </div>
+    <div class="kpi-card avg">
+      <div class="kpi-label">Total Paid (USD)</div>
+      <div class="kpi-value" id="as-paid-usd"><span class="spinner"></span></div>
+      <div class="kpi-sub">Gross paid amount</div>
+    </div>
+    <div class="kpi-card cancelled">
+      <div class="kpi-label">Total Refunded (USD)</div>
+      <div class="kpi-value" id="as-refunded-usd"><span class="spinner"></span></div>
+      <div class="kpi-sub">Money returned</div>
+    </div>
+    <div class="kpi-card net">
+      <div class="kpi-label">Net Spend (USD)</div>
+      <div class="kpi-value" id="as-net-usd"><span class="spinner"></span></div>
+      <div class="kpi-sub">Paid minus refunded</div>
+    </div>
+  </div>
+
+  <!-- AppSumo Charts -->
+  <div class="section-title">Spend by Year</div>
+  <div class="charts-grid">
+    <div class="chart-card" style="grid-column: 1 / -1;">
+      <h3>AppSumo Spend by Year — Paid vs Refunded (USD)</h3>
+      <div class="chart-wrap" style="height:280px;"><canvas id="appsumoYearChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- AppSumo Transactions Table -->
+  <div class="section-title">All AppSumo Purchases</div>
+  <div style="margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+    <input type="text" id="as-search" placeholder="Search product..." onkeyup="filterAppSumoTable()"
+      style="background:var(--card);border:1px solid var(--border);color:var(--text);padding:7px 12px;border-radius:8px;font-size:0.85rem;width:220px;outline:none;">
+    <select id="as-status-filter" onchange="filterAppSumoTable()"
+      style="background:var(--card);border:1px solid var(--border);color:var(--text);padding:7px 12px;border-radius:8px;font-size:0.85rem;outline:none;">
+      <option value="">All Statuses</option>
+      <option value="PAID">PAID</option>
+      <option value="PAID ACTIVATED">PAID ACTIVATED</option>
+      <option value="REFUNDED">REFUNDED</option>
+    </select>
+    <span id="as-count-label" style="color:var(--muted);font-size:0.8rem;"></span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Product</th>
+          <th>Date</th>
+          <th>Amount (USD)</th>
+          <th>Status</th>
+          <th>Invoice ID</th>
+        </tr>
+      </thead>
+      <tbody id="appsumo-tbody">
+        <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--muted);"><span class="spinner"></span> Loading AppSumo purchases from Supabase...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+</div>
 
 <footer>
   Generated by <span>DSM SaaS Spend Tracker</span> · Data Science Masterminds · 3 inboxes scanned · FX rates via Frankfurter API · Powered by Supabase
@@ -310,7 +422,6 @@
 const SUPABASE_URL = 'https://yntdrviikfsedihhcfdy.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InludGRydmlpa2ZzZWRpaGhjZmR5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIzMzQ0MTQsImV4cCI6MjA3NzkxMDQxNH0.4J4PcqMGhFXIws4122cPE3UlWkkotbE5ynzAQZyR1iI';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-// Register datalabels plugin only for charts that opt-in via plugin config
 Chart.register(ChartDataLabels);
 
 const fmt = (n, dec=2) => n == null ? '—' : Number(n).toLocaleString('en-IN', {minimumFractionDigits: dec, maximumFractionDigits: dec});
@@ -340,11 +451,34 @@ function statusBadge(s) {
   return map[s] || s;
 }
 
-let trendChart, catChart, subTypeChart;
+function appsumoStatusBadge(s) {
+  if (!s) return s;
+  const su = s.toUpperCase();
+  if (su === 'REFUNDED') return '<span class="status-refunded">↩ REFUNDED</span>';
+  if (su === 'PAID ACTIVATED') return '<span class="status-activated">✓ ACTIVATED</span>';
+  if (su === 'PAID') return '<span class="status-paid">✓ PAID</span>';
+  return `<span class="status-ended">${s}</span>`;
+}
 
+// Tab switching
+function switchTab(tabId, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  btn.classList.add('active');
+  // Lazy load AppSumo tab on first switch
+  if (tabId === 'appsumo-tab' && !window._appsumoLoaded) {
+    loadAppSumoTab();
+    window._appsumoLoaded = true;
+  }
+}
+
+let trendChart, catChart, subTypeChart, appsumoYearChart;
+let _appsumoAllRows = [];
+
+// ===================== SaaS Spends Tab =====================
 async function loadDashboard() {
   try {
-    // Fetch all views in parallel
     const [kpiRes, trendRes, subTypeRes, catRes, txnRes, apiRes, alertsRes] = await Promise.all([
       sb.from('v_kpi_summary').select('*').limit(1).single(),
       sb.from('v_monthly_trend').select('*'),
@@ -462,7 +596,6 @@ async function loadDashboard() {
     if (!apiRes.error && apiRes.data) {
       const llm = apiRes.data.filter(r => r.api_group === 'LLM API Credits');
       const infra = apiRes.data.filter(r => r.api_group === 'Infrastructure & Platform APIs');
-
       const renderApiRows = (rows) => rows.length === 0
         ? '<div style="color:var(--muted);font-size:0.8rem;padding:8px 0;">No records found</div>'
         : rows.map(r => `
@@ -476,7 +609,6 @@ async function loadDashboard() {
               <div class="api-amount amount-inr" style="font-size:0.8rem;">${fmtINR(r.amount_inr)}</div>
             </div>
           </div>`).join('');
-
       document.getElementById('llm-api-rows').innerHTML = renderApiRows(llm);
       document.getElementById('infra-api-rows').innerHTML = renderApiRows(infra);
       document.getElementById('llm-total').textContent = fmtUSD(llm.reduce((s, r) => s + parseFloat(r.amount_usd || 0), 0));
@@ -488,7 +620,6 @@ async function loadDashboard() {
       const txns = txnRes.data;
       let html = '';
       let lastMonth = '';
-
       txns.forEach(t => {
         const month = t.transaction_date ? new Date(t.transaction_date).toLocaleDateString('en-GB', {month:'long', year:'numeric'}) : 'Unknown';
         if (month !== lastMonth) {
@@ -514,7 +645,6 @@ async function loadDashboard() {
           <td>${statusBadge(t.status)}</td>
         </tr>`;
       });
-
       document.getElementById('txn-tbody').innerHTML = html || '<tr><td colspan="9" style="text-align:center;padding:30px;color:var(--muted);">No transactions found</td></tr>';
     }
 
@@ -542,7 +672,6 @@ async function loadDashboard() {
       document.getElementById('alerts-grid').innerHTML = '<div class="alert-card ok"><div class="alert-icon">✅</div><div class="alert-body"><h4>No active alerts</h4><p>All subscriptions are up to date.</p></div></div>';
     }
 
-    // Hide loading bar
     document.getElementById('loadingBar').style.display = 'none';
 
   } catch (err) {
@@ -552,6 +681,124 @@ async function loadDashboard() {
   }
 }
 
+// ===================== AppSumo Tab =====================
+async function loadAppSumoTab() {
+  try {
+    const [kpiRes, yearlyRes, fullRes] = await Promise.all([
+      sb.from('v_appsumo_kpi').select('*').limit(1).single(),
+      sb.from('v_appsumo_yearly').select('*'),
+      sb.from('v_appsumo_full').select('*')
+    ]);
+
+    // --- KPI Cards ---
+    if (!kpiRes.error && kpiRes.data) {
+      const k = kpiRes.data;
+      document.getElementById('as-total').textContent = k.total_products;
+      document.getElementById('as-paid').textContent = k.paid_count;
+      document.getElementById('as-refunded').textContent = k.refunded_count;
+      document.getElementById('as-paid-usd').textContent = '$' + fmt(k.total_paid_usd, 0);
+      document.getElementById('as-refunded-usd').textContent = '$' + fmt(k.total_refunded_usd, 0);
+      document.getElementById('as-net-usd').textContent = '$' + fmt(k.net_spend_usd, 0);
+    }
+
+    // --- Yearly Bar Chart ---
+    if (!yearlyRes.error && yearlyRes.data && yearlyRes.data.length > 0) {
+      const yr = yearlyRes.data;
+      if (appsumoYearChart) appsumoYearChart.destroy();
+      appsumoYearChart = new Chart(document.getElementById('appsumoYearChart'), {
+        type: 'bar',
+        data: {
+          labels: yr.map(r => String(r.year)),
+          datasets: [
+            {
+              label: 'Paid (USD)',
+              data: yr.map(r => parseFloat(r.paid_usd)),
+              backgroundColor: 'rgba(108,99,255,0.8)',
+              borderRadius: 5,
+              stack: 'stack'
+            },
+            {
+              label: 'Refunded (USD)',
+              data: yr.map(r => parseFloat(r.refunded_usd)),
+              backgroundColor: 'rgba(255,107,107,0.7)',
+              borderRadius: 5,
+              stack: 'stack2'
+            }
+          ]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { color: '#8892b0', font: { size: 11 }, boxWidth: 12, padding: 12 } },
+            tooltip: { callbacks: { label: ctx => ' $' + fmt(ctx.raw) } },
+            datalabels: {
+              anchor: 'end', align: 'end',
+              color: '#ccd6f6', font: { size: 10, weight: '600' },
+              formatter: v => v > 0 ? '$' + fmt(v, 0) : '',
+              padding: { bottom: 2 }
+            }
+          },
+          scales: {
+            x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8892b0' } },
+            y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#8892b0', callback: v => '$' + v } }
+          }
+        }
+      });
+    }
+
+    // --- Transactions Table ---
+    if (!fullRes.error && fullRes.data) {
+      _appsumoAllRows = fullRes.data;
+      renderAppSumoTable(_appsumoAllRows);
+    }
+
+  } catch (err) {
+    console.error('AppSumo tab error:', err);
+    document.getElementById('appsumo-tbody').innerHTML = `<tr><td colspan="6" class="error-msg">Error loading AppSumo data: ${err.message}</td></tr>`;
+  }
+}
+
+function renderAppSumoTable(rows) {
+  if (!rows || rows.length === 0) {
+    document.getElementById('appsumo-tbody').innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--muted);">No records found</td></tr>';
+    document.getElementById('as-count-label').textContent = '0 records';
+    return;
+  }
+  let html = '';
+  let lastYear = '';
+  rows.forEach((r, i) => {
+    const year = r.purchase_date ? new Date(r.purchase_date).getFullYear() : 'Unknown';
+    if (String(year) !== lastYear) {
+      html += `<tr class="month-row"><td colspan="6">${year}</td></tr>`;
+      lastYear = String(year);
+    }
+    const amt = r.amount_usd > 0 ? `<span class="amount-usd">$${fmt(r.amount_usd)}</span>` : '<span class="amount-muted">—</span>';
+    const invoiceShort = r.invoice_id ? r.invoice_id.substring(0, 8) + '…' : '—';
+    html += `<tr>
+      <td style="color:var(--muted);font-size:0.78rem;">${i + 1}</td>
+      <td><span class="service-name">${r.product}</span></td>
+      <td style="white-space:nowrap;">${fmtDate(r.purchase_date)}</td>
+      <td>${amt}</td>
+      <td>${appsumoStatusBadge(r.status)}</td>
+      <td style="font-size:0.72rem;color:var(--muted);font-family:monospace;" title="${r.invoice_id || ''}">${invoiceShort}</td>
+    </tr>`;
+  });
+  document.getElementById('appsumo-tbody').innerHTML = html;
+  document.getElementById('as-count-label').textContent = `${rows.length} records`;
+}
+
+function filterAppSumoTable() {
+  const search = document.getElementById('as-search').value.toLowerCase();
+  const statusFilter = document.getElementById('as-status-filter').value;
+  const filtered = _appsumoAllRows.filter(r => {
+    const matchSearch = !search || r.product.toLowerCase().includes(search);
+    const matchStatus = !statusFilter || r.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
+  renderAppSumoTable(filtered);
+}
+
+// Init
 loadDashboard();
 </script>
 </body>
